@@ -133,11 +133,22 @@ class SimpleSwitch13(app_manager.RyuApp):
 
             arp_dstIp = arpPacket.dst_ip
             self.logger.info("receive ARP request from %s => %s (port%d) for IP address: %s"
-                      % (etherFrame.src, etherFrame.dst, inPort, arp_dstIp))
+                             % (etherFrame.src, etherFrame.dst, inPort, arp_dstIp))
             self.reply_arp(datapath, etherFrame, arpPacket, arp_dstIp, inPort)
         elif arpPacket.opcode == 2:
-            self.logger.info("Do i get something??")
-            pass
+            arp_srcIp = arpPacket.src_ip
+            arp_srcMac = etherFrame.src
+            if arp_srcIp not in self.net:
+                self.logger.info(arp_srcIp + " added to graph")
+                self.net.add_node(arp_srcIp)
+                self.net.add_edge(datapath.id, arp_srcIp, port=inPort)
+                self.net.add_edge(arp_srcIp, datapath.id)
+                self.logger.info(self.net.edges(data=True))
+            self.mac_to_port.setdefault(datapath.id, {})
+            self.mac_to_port[datapath.id][arp_srcIp] = arp_srcMac
+            self.logger.info("receive ARP reply from %s => %s (port%d) for IP address: %s"
+                             % (etherFrame.src, etherFrame.dst, inPort, arp_srcIp))
+
 
     def reply_arp(self, datapath, etherFrame, arpPacket, arp_dstIp, inPort):
         dstIp = arpPacket.src_ip
@@ -231,7 +242,7 @@ class SimpleSwitch13(app_manager.RyuApp):
                 if ipaddress.ip_address(unicode(dst)) in ip_network:
                     # send arp request and ignore this packet
                     self.logger.info("send ARP request")
-                    self.send_arp(self.switches[key], 1, self.switches_mac[key], network_info[0], "00:00:00:00:00:00",
+                    self.send_arp(self.switches[key], 1, self.switches_mac[key], network_info[0], "ff:ff:ff:ff:ff:ff",
                                   dst, network_info[2])
             return
         else:
