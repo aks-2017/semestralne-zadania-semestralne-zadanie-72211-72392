@@ -90,12 +90,10 @@ class SimpleSwitch13(app_manager.RyuApp):
         inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
                                              actions)]
         if buffer_id:
-            self.logger.info("Sending FlowMod message with buffer_id")
             mod = parser.OFPFlowMod(datapath=datapath, buffer_id=buffer_id,
                                     priority=priority, match=match,
                                     instructions=inst)
         else:
-            self.logger.info("Sending FlowMod message without buffer_id")
             mod = parser.OFPFlowMod(datapath=datapath, priority=priority,
                                     match=match, instructions=inst)
         datapath.send_msg(mod)
@@ -207,6 +205,7 @@ class SimpleSwitch13(app_manager.RyuApp):
 
         if eth.ethertype == ether_types.ETH_TYPE_ARP:
             self.receive_arp(datapath, pkt, eth,in_port)
+            self.logger.info("")
             return
         if eth.ethertype != ether_types.ETH_TYPE_IP:
             # ignore non ip packets
@@ -242,6 +241,7 @@ class SimpleSwitch13(app_manager.RyuApp):
                 if ipaddress.ip_address(unicode(dst)) in ip_network:
                     # send arp request and ignore this packet
                     self.logger.info("send ARP request")
+                    self.logger.info("")
                     self.send_arp(self.switches[key], 1, self.switches_mac[key], network_info[0], "ff:ff:ff:ff:ff:ff",
                                   dst, network_info[2])
             return
@@ -275,6 +275,7 @@ class SimpleSwitch13(app_manager.RyuApp):
             out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
                                       in_port=in_port, actions=actions, data=data)
             datapath.send_msg(out)
+            self.logger.info("")
 
     @set_ev_cls(event.EventSwitchEnter)
     def get_topology_data(self, ev):
