@@ -36,8 +36,9 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.net = nx.DiGraph()
         self.switches = {}
         self.switches_ports = {}
-        self.switches_ports_blocked = []
-        self.switches_ports_offline = []
+        self.switches_flows = {}
+        self.switches_edges_blocked = []
+        self.switches_edges_offline = []
         self.switches_ports_ready = True
         self.convergent = True
 
@@ -85,14 +86,15 @@ class SimpleSwitch13(app_manager.RyuApp):
 
     def reset_flow(self):
         self.logger.info("Function to reset switches")
+        self.switches_flows.clear()
         # add blocked edges to graph and unblock them
-        self.net.add_edges_from(self.switches_ports_blocked)
-        for e in self.switches_ports_blocked:
+        self.net.add_edges_from(self.switches_edges_blocked)
+        for e in self.switches_edges_blocked:
             self.logger.info(e)
             src = e[0]
             src_port = e[2]['port']
             self.modify_port(src, src_port, True)
-        self.switches_ports_blocked = []
+        self.switches_edges_blocked = []
         # reset flows on switches
         for datapath in self.switches.values():
             ofproto = datapath.ofproto
@@ -171,6 +173,13 @@ class SimpleSwitch13(app_manager.RyuApp):
             self.net.add_node(src)
             self.net.add_edge(dpid, src, port=in_port)
             self.net.add_edge(src, dpid)
+
+        # ignore this message with asked network, add flow message was sended
+        self.switches_flows.setdefault(datapath.id, {})
+        temp_dict = self.switches_flows[dpid]
+        if dst in temp_dict:
+            return
+
         if dst in self.net:
             path = nx.shortest_path(self.net, src, dst)
             next = path[path.index(dpid) + 1]
@@ -191,6 +200,7 @@ class SimpleSwitch13(app_manager.RyuApp):
                 return
             else:
                 self.add_flow(datapath, 1, match, actions)
+        self.switches_flows[datapath.id][dst] = True
         data = None
         if msg.buffer_id == ofproto.OFP_NO_BUFFER:
             data = msg.data
@@ -204,8 +214,9 @@ class SimpleSwitch13(app_manager.RyuApp):
     def get_topology_data(self, ev):
         self.logger.info("Loading topology information:")
         # clearing all lists and graph
-        self.switches_ports_blocked = []
-        self.switches_ports_offline = []
+        self.switches_flows.clear()
+        self.switches_edges_blocked = []
+        self.switches_edges_offline = []
         self.net.clear()
         switch_list = get_switch(self.topology_api_app, None)
         switches = [switch.dp.id for switch in switch_list]
@@ -238,11 +249,11 @@ class SimpleSwitch13(app_manager.RyuApp):
         directed_graph = self.net.copy()
         directed_graph.remove_edges_from(mini_net.edges)
         # save all edges needed to be disabled
-        self.switches_ports_blocked = directed_graph.edges(data=True)
+        self.switches_edges_blocked = directed_graph.edges(data=True)
         # call function to block ports on this edges
-        self.block_ports(self.switches_ports_blocked)
+        self.block_ports(self.switches_edges_blocked)
         # remove edges from main forwarding graph
-        self.net.remove_edges_from(self.switches_ports_blocked)
+        self.net.remove_edges_from(self.switches_edges_blocked)
         self.logger.info("Full without loops:")
         self.logger.info(self.net.edges(data=True))
         self.logger.info("")
@@ -258,14 +269,14 @@ class SimpleSwitch13(app_manager.RyuApp):
             for e in list_edges:
                 edge_port_no = e[2]['port']
                 if edge_port_no == ofpport.port_no:
-                    if e not in self.switches_ports_offline:
-                        self.switches_ports_offline.append(e)
+                    if e not in self.switches_edges_offline:
+                        self.switches_edges_offline.append(e)
                         self.net.remove_edge(e[0], e[1])
         elif ofpport.state == 0:
-            for e in self.switches_ports_offline:
+            for e in self.switches_edges_offline:
                 if e[0] == ev.msg.datapath.id and e[2]['port'] == ofpport.port_no:
                     self.net.add_edge(e[0], e[1], port=e[2]['port'])
-                    self.switches_ports_offline.remove(e)
+                    self.switches_edges_offline.remove(e)
         # reset flow on all switches
         self.reset_flow()
         # recreate the connection graph

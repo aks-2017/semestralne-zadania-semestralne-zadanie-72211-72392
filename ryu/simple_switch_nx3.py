@@ -29,22 +29,7 @@ from ryu.ofproto import ether
 from ryu.ofproto import inet
 import networkx as nx
 import ipaddress
-
-NET_LIST = [("192.168.10.1", "192.168.10.0/24", 1),
-            ("192.168.20.1", "192.168.20.0/24", 1),
-            ("192.168.30.1", "192.168.30.0/24", 1),
-            ("192.168.40.1", "192.168.40.0/24", 1),
-            ("192.168.50.1", "192.168.50.0/24", 1),
-            ("192.168.60.1", "192.168.60.0/24", 1),
-            ("192.168.70.1", "192.168.70.0/24", 1)]
-
-MAC_LIST = ["00:00:00:00:10:01",
-            "00:00:00:00:10:02",
-            "00:00:00:00:10:03",
-            "00:00:00:00:10:04",
-            "00:00:00:00:10:05",
-            "00:00:00:00:10:06",
-            "00:00:00:00:10:07"]
+import json
 
 class SimpleSwitch13(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -55,9 +40,24 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.net = nx.DiGraph()
         self.mac_to_port = {}
         self.switches = {}
-        self.switches_mac = {}
         self.switches_net = {}
-        self.switches_ports_offline = []
+        self.switches_flows = {}
+        self.switches_edges_offline = []
+        self.load_network_info('topology.json')
+
+    def load_network_info(self, jsonFileName):
+        self.logger.info("Loading topology information from json file")
+        try:
+            with open(jsonFileName, 'r') as f:
+                data = json.load(f)
+                # load everything to dictionary
+                for bridge in data['bridges']:
+                    self.switches_net.setdefault(bridge['datapath_id'], [])
+                    for network in bridge['networks']:
+                        networkInfo = (network['mac_address'], network['ip_address'], network['ip_network'], network['port'])
+                        self.switches_net[bridge['datapath_id']].append(networkInfo)
+        except IOError:
+            self.logger.info("topology.json file not found")
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
@@ -80,8 +80,6 @@ class SimpleSwitch13(app_manager.RyuApp):
 
         self.logger.info("New switch " + str(datapath.id))
         self.switches[datapath.id] = datapath
-        self.switches_mac[datapath.id] = MAC_LIST[datapath.id - 1]
-        self.switches_net[datapath.id] = NET_LIST[datapath.id - 1]
 
     def add_flow(self, datapath, priority, match, actions, buffer_id=None):
         ofproto = datapath.ofproto
@@ -100,6 +98,7 @@ class SimpleSwitch13(app_manager.RyuApp):
 
     def reset_flow(self):
         self.logger.info("Function to reset switches")
+        self.switches_flows.clear()
         # reset flows on switches
         for datapath in self.switches.values():
             ofproto = datapath.ofproto
@@ -120,6 +119,7 @@ class SimpleSwitch13(app_manager.RyuApp):
             # save ip address to graph and mac address to dictionary
             arp_srcIp = arpPacket.src_ip
             arp_srcMac = etherFrame.src
+            # todo check with json topology
             if arp_srcIp not in self.net:
                 self.logger.info(arp_srcIp + " added to graph")
                 self.net.add_node(arp_srcIp)
@@ -152,14 +152,13 @@ class SimpleSwitch13(app_manager.RyuApp):
         dstIp = arpPacket.src_ip
         srcIp = arpPacket.dst_ip
         dstMac = etherFrame.src
-        if self.switches_net[datapath.id][0] == arp_dstIp:
-            srcMac = self.switches_mac[datapath.id]
-            outPort = inPort
-        else:
-            self.logger.info("unknown arp request received !")
-            return
-        self.send_arp(datapath, 2, srcMac, srcIp, dstMac, dstIp, outPort)
-        self.logger.info("send ARP reply %s => %s (port%d)" %(srcMac, dstMac, outPort))
+        for network in self.switches_net[datapath.id]:
+            if arp_dstIp == network[1]:
+                srcMac = network[0]
+                self.send_arp(datapath, 2, srcMac, srcIp, dstMac, dstIp, inPort)
+                self.logger.info("send ARP reply %s => %s (port%d)" % (srcMac, dstMac, inPort))
+                return
+        self.logger.info("unknown arp request received !")
 
     def send_arp(self, datapath, opcode, srcMac, srcIp, dstMac, dstIp, outPort):
         # request
@@ -228,22 +227,29 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.mac_to_port.setdefault(dpid, {})
         self.mac_to_port[dpid][src] = src_mac
 
+        # ignore this message with asked network, add flow message was sended
+        self.switches_flows.setdefault(datapath.id, {})
+        temp_dict = self.switches_flows[dpid]
+        if dst in temp_dict:
+            return
+
         if dst not in self.net:
             self.logger.info("not in graph, look up")
             # check if I have needed information
-            for key, network_info in self.switches_net.iteritems():
-                # ignore if it is my ip address
-                if dst == self.switches_net[key][0]:
-                    self.logger.info("ignore my ip address")
-                    # add something in the future?
-                    return
-                ip_network = ipaddress.ip_network(unicode(network_info[1]))
-                if ipaddress.ip_address(unicode(dst)) in ip_network:
-                    # send arp request and ignore this packet
-                    self.logger.info("send ARP request")
-                    self.logger.info("")
-                    self.send_arp(self.switches[key], 1, self.switches_mac[key], network_info[0], "ff:ff:ff:ff:ff:ff",
-                                  dst, network_info[2])
+            for key, network_list in self.switches_net.iteritems():
+                for network_info in network_list:
+                    # ignore if it is my ip address
+                    if dst == network_info[1]:
+                        self.logger.info("ignore my ip address")
+                        # add something in the future?
+                        return
+                    ip_network = ipaddress.ip_network(unicode(network_info[2]))
+                    if ipaddress.ip_address(unicode(dst)) in ip_network:
+                        # send arp request and ignore this packet
+                        self.logger.info("send ARP request")
+                        self.logger.info("")
+                        self.send_arp(self.switches[key], 1, network_info[0], network_info[1], "ff:ff:ff:ff:ff:ff",
+                                      dst, network_info[3])
             return
         else:
             path = nx.shortest_path(self.net, src, dst)
@@ -254,7 +260,16 @@ class SimpleSwitch13(app_manager.RyuApp):
                 return
             # check if this is the last switch and modify actions
             if next == dst:
-                actions = [parser.OFPActionSetField(eth_src=self.switches_mac[dpid]),
+                # find out mac address of port
+                out_port_mac = None
+                for network_info in self.switches_net[dpid]:
+                    ip_network = ipaddress.ip_network(unicode(network_info[2]))
+                    if ipaddress.ip_address(unicode(dst)) in ip_network:
+                        out_port_mac = network_info[0]
+                if out_port_mac is None:
+                    self.logger.info("Destination " + dst + " is not in json topology")
+                    return
+                actions = [parser.OFPActionSetField(eth_src=out_port_mac),
                            parser.OFPActionSetField(eth_dst=self.mac_to_port[dpid][dst]),
                            parser.OFPActionOutput(out_port)]
             else:
@@ -269,6 +284,8 @@ class SimpleSwitch13(app_manager.RyuApp):
                 return
             else:
                 self.add_flow(datapath, 1, match, actions)
+
+            self.switches_flows[datapath.id][dst] = True
             data = None
             if msg.buffer_id == ofproto.OFP_NO_BUFFER:
                 data = msg.data
@@ -281,7 +298,8 @@ class SimpleSwitch13(app_manager.RyuApp):
     def get_topology_data(self, ev):
         self.logger.info("Loading topology information:")
         # clearing all lists and graph
-        self.switches_ports_offline = []
+        self.switches_flows.clear()
+        self.switches_edges_offline = []
         self.net.clear()
         switch_list = get_switch(self.topology_api_app, None)
         switches = [switch.dp.id for switch in switch_list]
@@ -292,6 +310,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.net.add_edges_from(links)
         links = [(link.dst.dpid, link.src.dpid, {'port': link.dst.port_no}) for link in links_list]
         self.net.add_edges_from(links)
+        self.logger.info(self.net.edges(data=True))
 
     @set_ev_cls(ofp_event.EventOFPPortStatus, MAIN_DISPATCHER)
     def port_status_handler(self, ev):
@@ -304,14 +323,14 @@ class SimpleSwitch13(app_manager.RyuApp):
             for e in list_edges:
                 edge_port_no = e[2]['port']
                 if edge_port_no == ofpport.port_no:
-                    if e not in self.switches_ports_offline:
-                        self.switches_ports_offline.append(e)
+                    if e not in self.switches_edges_offline:
+                        self.switches_edges_offline.append(e)
                         self.net.remove_edge(e[0], e[1])
         elif ofpport.state == 0:
-            for e in self.switches_ports_offline:
+            for e in self.switches_edges_offline:
                 if e[0] == ev.msg.datapath.id and e[2]['port'] == ofpport.port_no:
                     self.net.add_edge(e[0], e[1], port=e[2]['port'])
-                    self.switches_ports_offline.remove(e)
+                    self.switches_edges_offline.remove(e)
         # reset flow on all switches
         self.reset_flow()
         self.logger.info(self.net.edges(data=True))
