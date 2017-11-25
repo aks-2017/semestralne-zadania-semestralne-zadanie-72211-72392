@@ -25,7 +25,7 @@ from ryu.topology import event, switches
 from ryu.topology.api import get_switch, get_link
 import networkx as nx
 from ryu.ofproto import ofproto_v1_3 as ofp
-
+from time import sleep
 
 class SimpleSwitch13(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -41,6 +41,11 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.switches_edges_offline = []
         self.switches_ports_ready = True
         self.convergent = True
+        self.print_info_enable = True
+
+    def print_info(self, msg, *args, **kwargs):
+        if self.print_info_enable:
+            self.logger.info(msg, *args, **kwargs)
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
@@ -85,12 +90,11 @@ class SimpleSwitch13(app_manager.RyuApp):
         datapath.send_msg(mod)
 
     def reset_flow(self):
-        self.logger.info("Function to reset switches")
+        self.print_info("Function to reset switches")
         self.switches_flows.clear()
         # add blocked edges to graph and unblock them
         self.net.add_edges_from(self.switches_edges_blocked)
         for e in self.switches_edges_blocked:
-            self.logger.info(e)
             src = e[0]
             src_port = e[2]['port']
             self.modify_port(src, src_port, True)
@@ -129,9 +133,9 @@ class SimpleSwitch13(app_manager.RyuApp):
         if self.switches_ports_ready == False:
             # need information about ports
             return
-        self.logger.info("Block ports on edges")
+        self.print_info("Block ports on edges")
         for e in edge_list:
-            self.logger.info(e)
+            self.print_info(e)
             src = e[0]
             src_port = e[2]['port']
             self.modify_port(src, src_port, False)
@@ -165,23 +169,23 @@ class SimpleSwitch13(app_manager.RyuApp):
 
         dpid = datapath.id
 
-        self.logger.info("packet in switch %s %s %s from port %s", dpid, src, dst, in_port)
+        self.print_info("packet in switch %s %s %s from port %s", dpid, src, dst, in_port)
 
         # learn a mac address to avoid FLOOD next time.
         if src not in self.net:
-            self.logger.info(src + " added to graph")
+            self.print_info(src + " added to graph")
             self.net.add_node(src)
             self.net.add_edge(dpid, src, port=in_port)
             self.net.add_edge(src, dpid)
 
         # ignore this message with asked network, add flow message was sended
-        self.switches_flows.setdefault(datapath.id, {})
-        temp_dict = self.switches_flows[dpid]
-        if dst in temp_dict:
+        self.switches_flows.setdefault(datapath.id, [])
+        temp_test = str(in_port)+src+dst
+        if temp_test in self.switches_flows[dpid] and dst != 'ff:ff:ff:ff:ff:ff':
             return
 
         if dst in self.net:
-            path = nx.shortest_path(self.net, src, dst)
+            path = nx.shortest_path(self.net, dpid, dst)
             next = path[path.index(dpid) + 1]
             out_port = self.net[dpid][next]['port']
         else:
@@ -191,7 +195,7 @@ class SimpleSwitch13(app_manager.RyuApp):
 
         # install a flow to avoid packet_in next time
         if out_port != ofproto.OFPP_FLOOD:
-            self.logger.info(src + " " + dst + " path found")
+            self.print_info(src + " " + dst + " path found")
             match = parser.OFPMatch(in_port=in_port, eth_dst=dst)
             # verify if we have a valid buffer_id, if yes avoid to send both
             # flow_mod & packet_out
@@ -200,7 +204,7 @@ class SimpleSwitch13(app_manager.RyuApp):
                 return
             else:
                 self.add_flow(datapath, 1, match, actions)
-        self.switches_flows[datapath.id][dst] = True
+        self.switches_flows[datapath.id].append(str(in_port)+src+dst)
         data = None
         if msg.buffer_id == ofproto.OFP_NO_BUFFER:
             data = msg.data
@@ -208,7 +212,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
                                   in_port=in_port, actions=actions, data=data)
         datapath.send_msg(out)
-        self.logger.info("")
+        self.print_info("")
 
     @set_ev_cls(event.EventSwitchEnter)
     def get_topology_data(self, ev):
@@ -227,23 +231,25 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.net.add_edges_from(links)
         links = [(link.dst.dpid, link.src.dpid, {'port': link.dst.port_no}) for link in links_list]
         self.net.add_edges_from(links)
+        sleep(1)
+        self.logger.info(self.net.edges(data=True))
         self.recalculate_topology()
 
     def recalculate_topology(self):
         if self.switches_ports_ready == False:
             # need information about ports
             return
-        self.logger.info("Recalculating the topology:")
+        self.print_info("Recalculating the topology:")
         undirected_graph = self.net.to_undirected()
         # find biggest subgraph and generate minimum spanning tree on it
         mini_net = nx.minimum_spanning_tree(max(nx.connected_component_subgraphs(undirected_graph), key=len))
         mini_net = mini_net.to_directed()
         # show full topology
-        self.logger.info("Full topology:")
-        self.logger.info(self.net.edges(data=True))
+        self.print_info("Full topology:")
+        self.print_info(self.net.edges(data=True))
         # show the minimum spanning tree
-        self.logger.info("MST:")
-        self.logger.info(mini_net.edges)
+        self.print_info("MST:")
+        self.print_info(mini_net.edges)
 
         # create temp graph with blocked edges (MST removed)
         directed_graph = self.net.copy()
@@ -254,39 +260,48 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.block_ports(self.switches_edges_blocked)
         # remove edges from main forwarding graph
         self.net.remove_edges_from(self.switches_edges_blocked)
-        self.logger.info("Full without loops:")
-        self.logger.info(self.net.edges(data=True))
-        self.logger.info("")
+        self.print_info("Full without loops:")
+        self.print_info(self.net.edges(data=True))
+        self.print_info("")
 
     @set_ev_cls(ofp_event.EventOFPPortStatus, MAIN_DISPATCHER)
     def port_status_handler(self, ev):
         ofpport = ev.msg.desc
-        self.logger.info("Change of port on switch" + str(ev.msg.datapath.id))
-        self.logger.info(ev.msg.desc)
+        self.print_info("Change of port " + str(ofpport.port_no) + " on switch " + str(ev.msg.datapath.id)
+                        + " to " + str(ofpport.state))
         if ofpport.state == 1:
             datapath_id = [ev.msg.datapath.id]
             list_edges = self.net.edges(nbunch=datapath_id, data=True)
             for e in list_edges:
                 edge_port_no = e[2]['port']
-                if edge_port_no == ofpport.port_no:
+                if e[0] == ev.msg.datapath.id and edge_port_no == ofpport.port_no:
                     if e not in self.switches_edges_offline:
                         self.switches_edges_offline.append(e)
                         self.net.remove_edge(e[0], e[1])
+                        # remove second end of edge
+                        list_edges2 = self.net.edges(nbunch=[e[1]], data=True)
+                        for e2 in list_edges2:
+                            if e2[1] == e[0]:
+                                self.switches_edges_offline.append(e2)
+                                self.net.remove_edge(e2[0], e2[1])
+                        # reset flow on all switches
+                        self.reset_flow()
+                        self.print_info(self.net.edges(data=True))
         elif ofpport.state == 0:
             for e in self.switches_edges_offline:
                 if e[0] == ev.msg.datapath.id and e[2]['port'] == ofpport.port_no:
                     self.net.add_edge(e[0], e[1], port=e[2]['port'])
                     self.switches_edges_offline.remove(e)
-        # reset flow on all switches
-        self.reset_flow()
-        # recreate the connection graph
-        self.recalculate_topology()
+                    # reset flow on all switches
+                    self.reset_flow()
+                    # recreate the connection graph
+                    self.recalculate_topology()
 
     @set_ev_cls(ofp_event.EventOFPPortDescStatsReply, MAIN_DISPATCHER)
     def port_desc_stats_reply_handler(self, ev):
         datapath = ev.msg.datapath
         self.switches_ports.setdefault(datapath.id, {})
-        self.logger.info("Ports info from " + str(datapath.id))
+        self.print_info("Ports info from " + str(datapath.id))
         for p in ev.msg.body:
             self.switches_ports[datapath.id][p.port_no] = p.hw_addr
         # check if this is the last one

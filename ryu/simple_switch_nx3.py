@@ -30,6 +30,7 @@ from ryu.ofproto import inet
 import networkx as nx
 import ipaddress
 import json
+from time import sleep
 
 class SimpleSwitch13(app_manager.RyuApp):
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
@@ -44,6 +45,11 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.switches_flows = {}
         self.switches_edges_offline = []
         self.load_network_info('topology.json')
+        self.print_info_enable = True
+
+    def print_info(self, msg, *args, **kwargs):
+        if self.print_info_enable:
+            self.logger.info(msg, *args, **kwargs)
 
     def load_network_info(self, jsonFileName):
         self.logger.info("Loading topology information from json file")
@@ -97,7 +103,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         datapath.send_msg(mod)
 
     def reset_flow(self):
-        self.logger.info("Function to reset switches")
+        self.print_info("Function to reset switches")
         self.switches_flows.clear()
         # reset flows on switches
         for datapath in self.switches.values():
@@ -121,30 +127,30 @@ class SimpleSwitch13(app_manager.RyuApp):
             arp_srcMac = etherFrame.src
             # todo check with json topology
             if arp_srcIp not in self.net:
-                self.logger.info(arp_srcIp + " added to graph")
+                self.print_info(arp_srcIp + " added to graph")
                 self.net.add_node(arp_srcIp)
                 self.net.add_edge(datapath.id, arp_srcIp, port=inPort)
                 self.net.add_edge(arp_srcIp, datapath.id)
-                self.logger.info(self.net.edges(data=True))
+                self.print_info(self.net.edges(data=True))
             self.mac_to_port.setdefault(datapath.id, {})
             self.mac_to_port[datapath.id][arp_srcIp] = arp_srcMac
 
             arp_dstIp = arpPacket.dst_ip
-            self.logger.info("receive ARP request from %s => %s (port%d) for IP address: %s"
+            self.print_info("receive ARP request from %s => %s (port%d) for IP address: %s"
                              % (etherFrame.src, etherFrame.dst, inPort, arp_dstIp))
             self.reply_arp(datapath, etherFrame, arpPacket, arp_dstIp, inPort)
         elif arpPacket.opcode == 2:
             arp_srcIp = arpPacket.src_ip
             arp_srcMac = etherFrame.src
             if arp_srcIp not in self.net:
-                self.logger.info(arp_srcIp + " added to graph")
+                self.print_info(arp_srcIp + " added to graph")
                 self.net.add_node(arp_srcIp)
                 self.net.add_edge(datapath.id, arp_srcIp, port=inPort)
                 self.net.add_edge(arp_srcIp, datapath.id)
-                self.logger.info(self.net.edges(data=True))
+                self.print_info(self.net.edges(data=True))
             self.mac_to_port.setdefault(datapath.id, {})
             self.mac_to_port[datapath.id][arp_srcIp] = arp_srcMac
-            self.logger.info("receive ARP reply from %s => %s (port%d) for IP address: %s"
+            self.print_info("receive ARP reply from %s => %s (port%d) for IP address: %s"
                              % (etherFrame.src, etherFrame.dst, inPort, arp_srcIp))
 
 
@@ -156,9 +162,9 @@ class SimpleSwitch13(app_manager.RyuApp):
             if arp_dstIp == network[1]:
                 srcMac = network[0]
                 self.send_arp(datapath, 2, srcMac, srcIp, dstMac, dstIp, inPort)
-                self.logger.info("send ARP reply %s => %s (port%d)" % (srcMac, dstMac, inPort))
+                self.print_info("send ARP reply %s => %s (port%d)" % (srcMac, dstMac, inPort))
                 return
-        self.logger.info("unknown arp request received !")
+        self.print_info("unknown arp request received !")
 
     def send_arp(self, datapath, opcode, srcMac, srcIp, dstMac, dstIp, outPort):
         # request
@@ -204,7 +210,7 @@ class SimpleSwitch13(app_manager.RyuApp):
 
         if eth.ethertype == ether_types.ETH_TYPE_ARP:
             self.receive_arp(datapath, pkt, eth,in_port)
-            self.logger.info("")
+            self.print_info("")
             return
         if eth.ethertype != ether_types.ETH_TYPE_IP:
             # ignore non ip packets
@@ -216,43 +222,43 @@ class SimpleSwitch13(app_manager.RyuApp):
 
         dpid = datapath.id
 
-        self.logger.info("packet in switch %s %s %s from port %s", dpid, src, dst, in_port)
+        # ignore this message with this ip address, add flow message was sended
+        self.switches_flows.setdefault(datapath.id, [])
+        temp_test = str(in_port) + src + dst
+        if temp_test in self.switches_flows[dpid]:
+            return
+
+        self.print_info("packet in switch %s %s %s from port %s", dpid, src, dst, in_port)
 
         # learn a ip address/MAC address to avoid asking next time.
         if src not in self.net:
-            self.logger.info(src + " added to graph")
+            self.print_info(src + " added to graph")
             self.net.add_node(src)
             self.net.add_edge(dpid, src, port=in_port)
             self.net.add_edge(src, dpid)
         self.mac_to_port.setdefault(dpid, {})
         self.mac_to_port[dpid][src] = src_mac
 
-        # ignore this message with asked network, add flow message was sended
-        self.switches_flows.setdefault(datapath.id, {})
-        temp_dict = self.switches_flows[dpid]
-        if dst in temp_dict:
-            return
-
         if dst not in self.net:
-            self.logger.info("not in graph, look up")
+            self.print_info("not in graph, look up")
             # check if I have needed information
             for key, network_list in self.switches_net.iteritems():
                 for network_info in network_list:
                     # ignore if it is my ip address
                     if dst == network_info[1]:
-                        self.logger.info("ignore my ip address")
+                        self.print_info("ignore my ip address")
                         # add something in the future?
                         return
                     ip_network = ipaddress.ip_network(unicode(network_info[2]))
                     if ipaddress.ip_address(unicode(dst)) in ip_network:
                         # send arp request and ignore this packet
-                        self.logger.info("send ARP request")
-                        self.logger.info("")
+                        self.print_info("send ARP request")
+                        self.print_info("")
                         self.send_arp(self.switches[key], 1, network_info[0], network_info[1], "ff:ff:ff:ff:ff:ff",
                                       dst, network_info[3])
             return
         else:
-            path = nx.shortest_path(self.net, src, dst)
+            path = nx.shortest_path(self.net, dpid, dst)
             next = path[path.index(dpid) + 1]
             out_port = self.net[dpid][next]['port']
             if out_port == in_port:
@@ -267,7 +273,7 @@ class SimpleSwitch13(app_manager.RyuApp):
                     if ipaddress.ip_address(unicode(dst)) in ip_network:
                         out_port_mac = network_info[0]
                 if out_port_mac is None:
-                    self.logger.info("Destination " + dst + " is not in json topology")
+                    self.print_info("Destination " + dst + " is not in json topology")
                     return
                 actions = [parser.OFPActionSetField(eth_src=out_port_mac),
                            parser.OFPActionSetField(eth_dst=self.mac_to_port[dpid][dst]),
@@ -275,7 +281,7 @@ class SimpleSwitch13(app_manager.RyuApp):
             else:
                 actions = [parser.OFPActionOutput(out_port)]
             # install a flow to avoid packet_in next time
-            self.logger.info(src + " " + dst + " path found")
+            self.print_info(src + " " + dst + " path found")
             match = parser.OFPMatch(in_port=in_port, eth_type=ether_types.ETH_TYPE_IP, ipv4_dst=dst)
             # verify if we have a valid buffer_id, if yes avoid to send both
             # flow_mod & packet_out
@@ -285,14 +291,14 @@ class SimpleSwitch13(app_manager.RyuApp):
             else:
                 self.add_flow(datapath, 1, match, actions)
 
-            self.switches_flows[datapath.id][dst] = True
+            self.switches_flows[datapath.id].append(str(in_port)+src+dst)
             data = None
             if msg.buffer_id == ofproto.OFP_NO_BUFFER:
                 data = msg.data
             out = parser.OFPPacketOut(datapath=datapath, buffer_id=msg.buffer_id,
                                       in_port=in_port, actions=actions, data=data)
             datapath.send_msg(out)
-            self.logger.info("")
+            self.print_info("")
 
     @set_ev_cls(event.EventSwitchEnter)
     def get_topology_data(self, ev):
@@ -310,27 +316,37 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.net.add_edges_from(links)
         links = [(link.dst.dpid, link.src.dpid, {'port': link.dst.port_no}) for link in links_list]
         self.net.add_edges_from(links)
+        sleep(1)
         self.logger.info(self.net.edges(data=True))
 
     @set_ev_cls(ofp_event.EventOFPPortStatus, MAIN_DISPATCHER)
     def port_status_handler(self, ev):
         ofpport = ev.msg.desc
-        self.logger.info("Change of port on switch" + str(ev.msg.datapath.id))
-        self.logger.info(ev.msg.desc)
+        self.print_info("Change of port " + str(ofpport.port_no) + " on switch " + str(ev.msg.datapath.id)
+                         + " to " + str(ofpport.state))
         if ofpport.state == 1:
             datapath_id = [ev.msg.datapath.id]
             list_edges = self.net.edges(nbunch=datapath_id, data=True)
             for e in list_edges:
                 edge_port_no = e[2]['port']
-                if edge_port_no == ofpport.port_no:
+                if e[0] == ev.msg.datapath.id and edge_port_no == ofpport.port_no:
                     if e not in self.switches_edges_offline:
                         self.switches_edges_offline.append(e)
                         self.net.remove_edge(e[0], e[1])
+                        # remove second end of edge
+                        list_edges2 = self.net.edges(nbunch=[e[1]], data=True)
+                        for e2 in list_edges2:
+                            if e2[1] == e[0]:
+                                self.switches_edges_offline.append(e2)
+                                self.net.remove_edge(e2[0], e2[1])
+                        # reset flow on all switches
+                        self.reset_flow()
+                        self.print_info(self.net.edges(data=True))
         elif ofpport.state == 0:
             for e in self.switches_edges_offline:
                 if e[0] == ev.msg.datapath.id and e[2]['port'] == ofpport.port_no:
                     self.net.add_edge(e[0], e[1], port=e[2]['port'])
                     self.switches_edges_offline.remove(e)
-        # reset flow on all switches
-        self.reset_flow()
-        self.logger.info(self.net.edges(data=True))
+                    # reset flow on all switches
+                    self.reset_flow()
+                    self.print_info(self.net.edges(data=True))
