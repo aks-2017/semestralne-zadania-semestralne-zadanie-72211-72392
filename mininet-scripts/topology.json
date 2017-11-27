@@ -1,0 +1,70 @@
+{
+  "bridges": [
+    {
+      "datapath_id": 1,
+      "networks": [
+        {
+          "mac_address": "00:00:00:00:10:01",
+          "ip_address": "192.168.10.1",
+          "ip_network": "192.168.10.0/24",
+          "port": 1
+        }
+      ]
+    },
+    {
+      "datapath_id": 2,
+      "networks": [
+        {
+          "mac_address": "00:00:00:00:20:01",
+          "ip_address": "192.168.20.1",
+          "ip_network": "192.168.20.0/24",
+          "port": 1
+        }
+      ]
+    },
+    {
+      "datapath_id": 3,
+      "networks": [
+        {
+          "mac_address": "00:00:00:00:30:01",
+          "ip_address": "192.168.30.1",
+          "ip_network": "192.168.30.0/24",
+          "port": 1
+        }
+      ]
+    },
+    {
+      "datapath_id": 4,
+      "networks": [
+        {
+          "mac_address": "00:00:00:00:40:01",
+          "ip_address": "192.168.40.1",
+          "ip_network": "192.168.40.0/24",
+          "port": 1
+        }
+      ]
+    },
+    {
+      "datapath_id": 5,
+      "networks": [
+        {
+          "mac_address": "00:00:00:00:50:01",
+          "ip_address": "192.168.50.1",
+          "ip_network": "192.168.50.0/24",
+          "port": 1
+        }
+      ]
+    },
+    {
+      "datapath_id": 6,
+      "networks": [
+        {
+          "mac_address": "00:00:00:00:60:01",
+          "ip_address": "192.168.60.1",
+          "ip_network": "192.168.60.0/24",
+          "port": 1
+        }
+      ]
+    }
+  ]
+}
