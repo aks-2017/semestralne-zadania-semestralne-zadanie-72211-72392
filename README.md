@@ -30,6 +30,7 @@ Druhý prototyp smeruje aj na základe IP adries:
 
     git clone https://github.com/aks-2017/semestralne-zadania-semestralne-zadanie-xskuta-xlisiak.git
     cd semestralne-zadania-semestralne-zadanie-xskuta-xlisiak/deploy-scripts
+	chmod +x ./check_ubuntu_dependecies.sh
     sudo ./check_ubuntu_dependecies.sh
 
 
@@ -43,5 +44,6 @@ Druhý prototyp smeruje aj na základe IP adries:
  - manuálne testovanie:
 
     sudo python mininet-scripts/runner3.py alebo mininet-scripts/runner.py
+	
     ryu-manager --observe-links ryu/simple_switch_nx3.py alebo
     ryu-manager --observe-links ryu/simple_switch_nx.py
