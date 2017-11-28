@@ -1,10 +1,16 @@
-# An experimental feasibility study on applying SDN technology to disaster-resilient wide area networks
+﻿# An experimental feasibility study on applying SDN technology to disaster-resilient wide area networks
 
 ## Štruktúra repozitára
-Kde sa čo nachádza
+```
+deploy-scripts\		- priečinok obsahujúci script, ktorý nainštaluje potrebné programy
+docs\				- dokumentácie
+img\				- obrázky použité v dokumentácii a Readme.md súbore
+mininet-scripts\	- súbory potrebné pre zostavenie požadovanej topológie a spustenie simulácie
+ryu\				- kontrolér
+```
 
 ## Dokument
-Odkaz na dokument?
+Finálny článok nájdete [tu](../blob/master/docs/Skuta_Lisiak.pdf)
 
 ## Naša implementácia
 Vytvorili sme 2 prototypy odlišujúce sa spôsobom smerovania dát v topológii.
@@ -27,19 +33,19 @@ Druhý prototyp smeruje aj na základe IP adries:
  - knižnica ipaddress (sudo pip install ipaddress)
 
 **Inštalácia softvéru:**
-
-    git clone https://github.com/aks-2017/semestralne-zadania-semestralne-zadanie-xskuta-xlisiak.git
-    cd semestralne-zadania-semestralne-zadanie-xskuta-xlisiak/deploy-scripts
-	chmod +x ./check_ubuntu_dependecies.sh
-    sudo ./check_ubuntu_dependecies.sh
-
+```bash
+git clone https://github.com/aks-2017/semestralne-zadania-semestralne-zadanie-xskuta-xlisiak.git
+cd semestralne-zadania-semestralne-zadanie-xskuta-xlisiak/deploy-scripts
+chmod +x ./check_ubuntu_dependecies.sh
+sudo ./check_ubuntu_dependecies.sh
+```
 
 
 
 ### Spustenie softvéru:
 
 #### *Automatické na otestovanie scenára:*
-```
+```bash
 sudo python mininet-scripts/runner3_auto.py
 sudo python mininet-scripts/runner_auto.py
 ```
@@ -47,13 +53,13 @@ sudo python mininet-scripts/runner_auto.py
  
  *Layer2*
 
-```
+```bash
 sudo python mininet-scripts/runner.py
 ryu-manager --observe-links ryu/simple_switch_nx.py
 ```
 
 *Layer3*
-```
+```bash
 sudo python mininet-scripts/runner3.py
 ryu-manager --observe-links ryu/simple_switch_nx3.py
 ```
