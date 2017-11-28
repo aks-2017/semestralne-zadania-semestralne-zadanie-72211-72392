@@ -3,14 +3,14 @@
 ## Štruktúra repozitára
 ```
 deploy-scripts\		- priečinok obsahujúci script, ktorý nainštaluje potrebné programy
-docs\				- dokumentácie
-img\				- obrázky použité v dokumentácii a Readme.md súbore
+docs\			- dokumentácie
+img\			- obrázky použité v dokumentácii a Readme.md súbore
 mininet-scripts\	- súbory potrebné pre zostavenie požadovanej topológie a spustenie simulácie
-ryu\				- kontrolér
+ryu\			- kontrolér použitý pri simulácii
 ```
 
 ## Dokument
-Finálny článok nájdete [tu](../blob/master/docs/Skuta_Lisiak.pdf)
+Finálny článok nájdete [tu](../docs/Skuta_Lisiak.pdf)
 
 ## Naša implementácia
 Vytvorili sme 2 prototypy odlišujúce sa spôsobom smerovania dát v topológii.
