@@ -39,11 +39,17 @@ Druhý prototyp smeruje aj na základe IP adries:
 
  - automatické na otestovanie scenára:
 
-    sudo python mininet-scripts/runner3_auto.py alebo mininet-scripts/runner_auto.py
+    **sudo python mininet-scripts/runner3_auto.py** alebo **sudo python mininet-scripts/runner_auto.py**
 
  - manuálne testovanie:
-
-    sudo python mininet-scripts/runner3.py alebo mininet-scripts/runner.py
-	
-    ryu-manager --observe-links ryu/simple_switch_nx3.py alebo
+  *Layer2*
+    ```
+    sudo python mininet-scripts/runner.py
     ryu-manager --observe-links ryu/simple_switch_nx.py
+    ```
+
+   *Layer3*
+   ```
+    sudo python mininet-scripts/runner3.py
+    ryu-manager --observe-links ryu/simple_switch_nx3.py
+    ```
