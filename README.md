@@ -15,24 +15,24 @@ Finálny článok nájdete [tu](../master/docs/Skuta_Lisiak.pdf)
 ## Naša implementácia
 Vytvorili sme 2 prototypy odlišujúce sa spôsobom smerovania dát v topológii.
 
-##### Prvý prototyp smeruje len na základe MAC adries:
+#### *Prvý prototyp smeruje len na základe MAC adries:*
 
-Mininet: 
+*Mininet:*
   * mininet-scripts/runner_auto.py 
   * mininet-scripts/runner.py
 
-Kontrolér:
+*Kontrolér:*
   * ryu/simple_switch_nx.py
 
 
-##### Druhý prototyp smeruje aj na základe IP adries:
+#### *Druhý prototyp smeruje aj na základe IP adries:*
 
-Mininet:
+*Mininet:*
   * mininet-scripts/runner3_auto.py
   * mininet-scripts/runner3.py
 
 
-Kontrolér:
+*Kontrolér:*
   * ryu/simple_switch_nx3.py
 
 ## Požiadavky softvéru:
@@ -42,7 +42,7 @@ Kontrolér:
  - knižnica networkx (sudo pip install networkx)
  - knižnica ipaddress (sudo pip install ipaddress)
 
-**Inštalácia softvéru:**
+#### *Inštalácia softvéru:*
 ```bash
 git clone https://github.com/aks-2017/semestralne-zadania-semestralne-zadanie-xskuta-xlisiak.git
 cd semestralne-zadania-semestralne-zadanie-xskuta-xlisiak/deploy-scripts
@@ -73,3 +73,5 @@ ryu-manager --observe-links ryu/simple_switch_nx.py
 sudo python mininet-scripts/runner3.py
 ryu-manager --observe-links ryu/simple_switch_nx3.py
 ```
+
+
