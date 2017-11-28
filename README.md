@@ -35,22 +35,26 @@ Druhý prototyp smeruje aj na základe IP adries:
 
 
 
-**Spustenie softvéru:**
 
- - automatické na otestovanie scenára:
+### Spustenie softvéru:
 
-    **sudo python mininet-scripts/runner3_auto.py** alebo **sudo python mininet-scripts/runner_auto.py**
-
- - manuálne testovanie:
+#### *Automatické na otestovanie scenára:*
+```
+sudo python mininet-scripts/runner3_auto.py
+sudo python mininet-scripts/runner_auto.py
+```
+#### *Manuálne testovanie:*
  
-  *Layer2*
-    ```
-    sudo python mininet-scripts/runner.py
-    ryu-manager --observe-links ryu/simple_switch_nx.py
-    ```
+ *Layer2*
 
-   *Layer3*
-   ```
-    sudo python mininet-scripts/runner3.py
-    ryu-manager --observe-links ryu/simple_switch_nx3.py
-    ```
+```
+sudo python mininet-scripts/runner.py
+ryu-manager --observe-links ryu/simple_switch_nx.py
+```
+
+*Layer3*
+```
+sudo python mininet-scripts/runner3.py
+ryu-manager --observe-links ryu/simple_switch_nx3.py
+```
+
