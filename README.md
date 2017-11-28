@@ -10,7 +10,7 @@ ryu\			- kontrolér použitý pri simulácii
 ```
 
 ## Dokument
-Finálny článok nájdete [tu](../docs/Skuta_Lisiak.pdf)
+Finálny článok nájdete [tu](../master/docs/Skuta_Lisiak.pdf)
 
 ## Naša implementácia
 Vytvorili sme 2 prototypy odlišujúce sa spôsobom smerovania dát v topológii.
