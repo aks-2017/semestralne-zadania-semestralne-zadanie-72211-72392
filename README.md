@@ -42,6 +42,7 @@ Druhý prototyp smeruje aj na základe IP adries:
     **sudo python mininet-scripts/runner3_auto.py** alebo **sudo python mininet-scripts/runner_auto.py**
 
  - manuálne testovanie:
+ 
   *Layer2*
     ```
     sudo python mininet-scripts/runner.py
